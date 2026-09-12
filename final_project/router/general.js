@@ -4,6 +4,9 @@ let isValid = require("./auth_users.js").isValid;
 let users = require("./auth_users.js").users;
 const public_users = express.Router();
 
+async function getBooks() {
+  return books;
+}
 
 public_users.post("/register", (req,res) => {
   const { username, password } = req.body;
@@ -30,27 +33,30 @@ public_users.post("/register", (req,res) => {
 });
 
 // Get the book list available in the shop
-public_users.get('/',function (req, res) {
-  const available_books = Object.keys(books).map((isbn) => {
-    return { isbn, ...books[isbn] };
+public_users.get('/', async function (req, res) {
+  const bookData = await getBooks();
+  const available_books = Object.keys(bookData).map((isbn) => {
+    return { isbn, ...bookData[isbn] };
   });
 
   return res.status(200).json(available_books);
 });
 
 // Get book details based on ISBN
-public_users.get('/isbn/:isbn',function (req, res) {
+public_users.get('/isbn/:isbn', async function (req, res) {
+  const bookData = await getBooks();
   const isbn=req.params.isbn;
-  const book=books[isbn];
+  const book=bookData[isbn];
   return res.status(200).json(book);
  });
   
 // Get book details based on author
-public_users.get('/author/:author',function (req, res) {
+public_users.get('/author/:author', async function (req, res) {
+  const bookData = await getBooks();
   const author = req.params.author;
-  const available_books = Object.keys(books)
-    .filter((isbn) => books[isbn].author === author)
-    .map((isbn) => ({ isbn, ...books[isbn] }));
+  const available_books = Object.keys(bookData)
+    .filter((isbn) => bookData[isbn].author === author)
+    .map((isbn) => ({ isbn, ...bookData[isbn] }));
 
   if (available_books.length === 0) {
     return res.status(400).json({ message: "Provide proper author name", success: false });
@@ -60,18 +66,20 @@ public_users.get('/author/:author',function (req, res) {
 });
 
 // Get all books based on title
-public_users.get('/title/:title',function (req, res) {
+public_users.get('/title/:title', async function (req, res) {
+  const bookData = await getBooks();
   const title = req.params.title;
-  const available_books = Object.keys(books)
-    .filter((isbn) => books[isbn].title.startsWith(title))
-    .map((isbn) => ({ isbn, ...books[isbn] }));
+  const available_books = Object.keys(bookData)
+    .filter((isbn) => bookData[isbn].title.startsWith(title))
+    .map((isbn) => ({ isbn, ...bookData[isbn] }));
   return res.status(200).json(available_books);
 });
 
 //  Get book review
-public_users.get('/review/:isbn',function (req, res) {
+public_users.get('/review/:isbn', async function (req, res) {
+  const bookData = await getBooks();
   const isbn=req.params.isbn;
-  const reviews=books[isbn].reviews;
+  const reviews=bookData[isbn].reviews;
   console.log(reviews);
   if (Object.keys(reviews).length > 0) {
   return res.status(200).json(reviews);
