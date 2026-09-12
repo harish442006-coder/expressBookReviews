@@ -5,8 +5,22 @@ let users = require("./auth_users.js").users;
 const public_users = express.Router();
 
 async function getBooks() {
+  // Keep the lookup async so the data source can be replaced later without changing the routes.
   return books;
 }
+
+// Express 4 will not forward a rejected async handler on its own.
+const asyncHandler = (handler) => async (req, res) => {
+  try {
+    await handler(req, res);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch book data"
+    });
+  }
+};
 
 public_users.post("/register", (req,res) => {
   const { username, password } = req.body;
@@ -32,26 +46,29 @@ public_users.post("/register", (req,res) => {
   });
 });
 
-// Get the book list available in the shop
-public_users.get('/', async function (req, res) {
+// Return the full catalog in the format expected by the client.
+public_users.get('/', asyncHandler(async function (req, res) {
   const bookData = await getBooks();
   const available_books = Object.keys(bookData).map((isbn) => {
     return { isbn, ...bookData[isbn] };
   });
 
   return res.status(200).json(available_books);
-});
+}));
 
-// Get book details based on ISBN
-public_users.get('/isbn/:isbn', async function (req, res) {
+// ISBNs are the most direct way to look up a single book.
+public_users.get('/isbn/:isbn', asyncHandler(async function (req, res) {
   const bookData = await getBooks();
   const isbn=req.params.isbn;
   const book=bookData[isbn];
+  if (!book) {
+    return res.status(404).json({ message: "Book not found", success: false });
+  }
   return res.status(200).json(book);
- });
+}));
   
-// Get book details based on author
-public_users.get('/author/:author', async function (req, res) {
+// Author and title searches return the ISBN with each matching book.
+public_users.get('/author/:author', asyncHandler(async function (req, res) {
   const bookData = await getBooks();
   const author = req.params.author;
   const available_books = Object.keys(bookData)
@@ -63,28 +80,29 @@ public_users.get('/author/:author', async function (req, res) {
   }
 
   return res.status(200).json(available_books);
-});
+}));
 
-// Get all books based on title
-public_users.get('/title/:title', async function (req, res) {
+public_users.get('/title/:title', asyncHandler(async function (req, res) {
   const bookData = await getBooks();
   const title = req.params.title;
   const available_books = Object.keys(bookData)
     .filter((isbn) => bookData[isbn].title.startsWith(title))
     .map((isbn) => ({ isbn, ...bookData[isbn] }));
   return res.status(200).json(available_books);
-});
+}));
 
-//  Get book review
-public_users.get('/review/:isbn', async function (req, res) {
+// Reviews belong to a book, so check that the ISBN exists before reading them.
+public_users.get('/review/:isbn', asyncHandler(async function (req, res) {
   const bookData = await getBooks();
   const isbn=req.params.isbn;
+  if (!bookData[isbn]) {
+    return res.status(404).json({ message: "Book not found", success: false });
+  }
   const reviews=bookData[isbn].reviews;
-  console.log(reviews);
   if (Object.keys(reviews).length > 0) {
   return res.status(200).json(reviews);
   }
   return res.status(200).json({message:"No reviews found for this book"});
-});
+}));
 
 module.exports.general = public_users;
